@@ -62,9 +62,6 @@ def download_sdl_libraries():
             except Exception as e:
                 raise RuntimeError(f"Failed to download {file_info['expected_name']}: {str(e)}")
 
-# Download libraries before proceeding
-download_sdl_libraries()
-
 # SDL2 and SDL2_mixer constants and structures
 
 # SDL base type definitions
@@ -157,40 +154,68 @@ class Mix_Chunk(ctypes.Structure):
         ("alen", c_uint32),
         ("volume", c_uint8)
     ]
+def check_sdl_libraries_exist(directory):
+    """Check if SDL2 library files exist in the specified directory"""
+    sdl2_path = os.path.join(directory, "SDL2.dll")
+    sdl2_mixer_path = os.path.join(directory, "SDL2_mixer.dll")
+    return os.path.exists(sdl2_path) and os.path.exists(sdl2_mixer_path)
 
-# Load SDL2 and SDL2_mixer libraries
-# Load SDL2 and SDL2_mixer libraries
-try:
-    # Get the directory of the current script
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    
-    # Add the current directory to the DLL search path
+def load_sdl2_from_directory(directory):
+    """Load SDL2 libraries from the specified directory"""
+    # Add DLL search path
     if hasattr(os, 'add_dll_directory'):
-        os.add_dll_directory(current_dir)
+        os.add_dll_directory(directory)
     
     # Set DLL search path
-    os.environ['PATH'] = current_dir + os.pathsep + os.environ.get('PATH', '')
+    os.environ['PATH'] = directory + os.pathsep + os.environ.get('PATH', '')
     
-    # Attempt to load the DLL from the current directory
-    sdl2_path = os.path.join(current_dir, "SDL2.dll")
-    sdl2_mixer_path = os.path.join(current_dir, "SDL2_mixer.dll")
+    # Build full DLL paths
+    sdl2_path = os.path.join(directory, "SDL2.dll")
+    sdl2_mixer_path = os.path.join(directory, "SDL2_mixer.dll")
     
     if os.path.exists(sdl2_path) and os.path.exists(sdl2_mixer_path):
         _sdl_lib = CDLL(sdl2_path)
         _mix_lib = CDLL(sdl2_mixer_path)
+        return _sdl_lib, _mix_lib
     else:
-        # If not found in the current directory, try the system path
+        raise FileNotFoundError(f"SDL2 libraries not found in {directory}")
+
+def import_sdl2():
+    """Main function: Import SDL2 libraries"""
+    # Get current script directory
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    try:
+        # First try to load from current directory
+        if check_sdl_libraries_exist(current_dir):
+            return load_sdl2_from_directory(current_dir)
+        
+        # If not found in current directory, try system path
         _sdl_lib = CDLL("SDL2.dll")
         _mix_lib = CDLL("SDL2_mixer.dll")
-    
-except Exception as e:
-    raise ImportError(
-        f"Failed to load SDL libraries!\n"
-        f"Current directory: {current_dir}\n"
-        f"DLL search path: {os.environ.get('PATH', '')}\n"
-        f"Error details: {str(e)}"
-    )
+        return _sdl_lib, _mix_lib
+        
+    except Exception as e:
+        # If loading fails, download library files
+        print("SDL2 libraries not found, downloading...")
+        download_sdl_libraries()  # Assume this function is defined
+        
+        # After download, try to load from current directory again
+        if check_sdl_libraries_exist(current_dir):
+            return load_sdl2_from_directory(current_dir)
+        else:
+            raise ImportError(
+                f"Failed to load SDL libraries after download!\n"
+                f"Current directory: {current_dir}\n"
+                f"DLL search path: {os.environ.get('PATH', '')}\n"
+                f"Error details: {str(e)}"
+            )
 
+# Usage example
+try:
+    _sdl_lib, _mix_lib = import_sdl2()
+except ImportError as e:
+    print(f"Failed to load SDL2: {e}")    
 # SDL function definitions
 def SDL_Init(flags):
     return _sdl_lib.SDL_Init(flags)
