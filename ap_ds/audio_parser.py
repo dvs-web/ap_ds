@@ -59,10 +59,7 @@ class AudioParser:
         
         self._dll.GetWavDuration.argtypes = [c_char_p]
         self._dll.GetWavDuration.restype = c_int
-        
-        # 新增的M4A/AAC函数
-        self._dll.GetM4aDuration.argtypes = [c_char_p]
-        self._dll.GetM4aDuration.restype = c_int
+
     
     def get_audio_duration(self, file_path: str) -> int:
         """
